@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html laang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BPM To-Do List</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .glass-card {
+      background: rgba(21, 27, 38, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(0, 255, 170, 0.15);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .glass-header {
+      background: rgba(11, 15, 25, 0.9);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(0, 255, 170, 0.2);
+    }
+
+    .neon-border {
+      border-color: rgba(0, 255, 170, 0.4);
+    }
+
+    .neon-glow-btn {
+      background-color: #00ffaa;
+      color: #0b0f19;
+      font-weight: 600;
+      box-shadow: 0 0 15px rgba(0, 255, 170, 0.3);
+      transition: all 0.2s ease-in-out;
+    }
+
+    .neon-glow-btn:hover {
+      box-shadow: 0 0 22px rgba(0, 255, 170, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .neon-glow-btn:active {
+      transform: translateY(1px);
+    }
+
+    .completed-task {
+      text-decoration: line-through;
+      opacity: 0.55;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00ffaa;
+    }
+
+    /* Dragging Visual Effects */
+    .task-item.dragging {
+      opacity: 0.4;
+      border: 2px dashed #00ffaa;
+    }
+
+    .task-item {
+      transition: transform 0.15s ease, background-color 0.2s ease;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-12 flex flex-col items-center select-none">
+
+  <!-- Top Navigation & Live Info Widget Bar -->
+  <header class="w-full max-w-lg sticky top-0 z-30 glass-header px-4 py-3 flex flex-col gap-2">
+    <!-- Live REST Widget Header (Clock + Weather) -->
+    <div class="flex items-center justify-between text-xs text-gray-400 border-b border-gray-800 pb-2">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-clock text-[#00ffaa]"></i>
+        <span id="live-clock" class="font-mono text-gray-200">--:--:-- WIB</span>
+      </div>
+      <div id="weather-widget" class="flex items-center gap-1.5 text-gray-300">
+        <i class="fa-solid fa-spinner fa-spin text-[#00ffaa]"></i>
+        <span>Memuat Cuaca...</span>
+      </div>
+    </div>
+
+    <!-- Main Navigation Header (Matching Wireframe: To Do Title + (+) Button) -->
+    <div class="flex items-center justify-between mt-1">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-[#00ffaa] animate-pulse"></div>
+        <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          To Do <span class="text-xs px-2 py-0.5 rounded-full bg-[#00ffaa]/10 text-[#00ffaa] border border-[#00ffaa]/30">BPM Team</span>
+        </h1>
+      </div>
+      
+      <!-- (+) Add Button -->
+      <button onclick="openModal('add')" title="Tambah Tugas Baru" 
+              class="w-10 h-10 rounded-full bg-[#00ffaa] text-[#0b0f19] flex items-center justify-center font-bold text-xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_12px_rgba(0,255,170,0.4)]">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="w-full max-w-lg px-4 mt-4 flex flex-col gap-4">
+    
+    <!-- Controls: Search & Filters -->
+    <div class="glass-card rounded-2xl p-3.5 flex flex-col gap-3">
+      <!-- Search Input -->
+      <div class="relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+        <input type="text" id="search-input" oninput="handleSearchInput()" placeholder="Cari tugas BPM..." 
+               class="w-full bg-[#151b26] border border-gray-700/60 text-sm rounded-xl pl-9 pr-8 py-2 text-white focus:outline-none focus:border-[#00ffaa] transition-all">
+        <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Filter Tabs & Category Select -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <!-- Status Tabs -->
+        <div class="flex bg-[#0b0f19] p-1 rounded-xl border border-gray-800 text-xs">
+          <button onclick="setStatusFilter('All')" id="tab-all" class="px-3 py-1.5 rounded-lg font-medium transition-all text-[#00ffaa] bg-[#151b26]">Semua</button>
+          <button onclick="setStatusFilter('Active')" id="tab-active" class="px-3 py-1.5 rounded-lg font-medium transition-all text-gray-400 hover:text-white">Aktif</button>
+          <button onclick="setStatusFilter('Completed')" id="tab-completed" class="px-3 py-1.5 rounded-lg font-medium transition-all text-gray-400 hover:text-white">Selesai</button>
+        </div>
+
+        <!-- Category Dropdown -->
+        <select id="category-filter" onchange="handleCategoryFilterChange()" 
+                class="bg-[#151b26] border border-gray-700/60 text-xs rounded-xl px-2.5 py-1.5 text-gray-300 focus:outline-none focus:border-[#00ffaa]">
+          <option value="All">Semua Kategori</option>
+          <option value="Process Mapping">Process Mapping</option>
+          <option value="Client Review">Client Review</option>
+          <option value="System Audit">System Audit</option>
+          <option value="Internal BPM">Internal BPM</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Task List Container -->
+    <div id="task-list-container" class="flex flex-col gap-2.5 min-h-[250px]">
+      <!-- Loading State Skeleton -->
+      <div id="loading-state" class="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
+        <i class="fa-solid fa-circle-notch fa-spin text-3xl text-[#00ffaa]"></i>
+        <span class="text-sm">Memuat daftar tugas BPM...</span>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden flex flex-col items-center justify-center py-12 px-4 glass-card rounded-2xl text-center">
+      <div class="w-12 h-12 rounded-full bg-[#151b26] border border-gray-700 flex items-center justify-center text-gray-400 mb-3">
+        <i class="fa-solid fa-clipboard-check text-xl"></i>
+      </div>
+      <h3 class="text-base font-semibold text-white">Tidak ada tugas</h3>
+      <p class="text-xs text-gray-400 mt-1 max-w-xs">Belum ada tugas BPM yang sesuai dengan filter atau kata kunci pencarian Anda.</p>
+    </div>
+  </main>
+
+  <!-- MODAL ADD / EDIT TASK (Matching Wireframe 'Add New' Screen) -->
+  <div id="task-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-200">
+    <div class="glass-card w-full max-w-md rounded-2xl p-5 border border-[#00ffaa]/30 shadow-2xl transform scale-95 transition-transform duration-200" id="modal-box">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+        <div class="flex items-center gap-2">
+          <button onclick="closeModal()" class="text-gray-400 hover:text-white p-1 mr-1">
+            <i class="fa-solid fa-arrow-left text-lg"></i>
+          </button>
+          <h2 id="modal-title" class="text-lg font-bold text-white">Add New</h2>
+        </div>
+        <button onclick="saveTaskFromModal()" id="modal-done-btn" class="neon-glow-btn px-4 py-1.5 rounded-xl text-xs flex items-center gap-1.5">
+          <span>Done</span>
+          <i class="fa-solid fa-check"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body Form -->
+      <form id="task-form" onsubmit="event.preventDefault(); saveTaskFromModal();" class="mt-4 flex flex-col gap-4">
+        <input type="hidden" id="form-task-id" value="">
+        
+        <!-- Task Name Input -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-medium text-gray-300">Name <span class="text-red-400">*</span></label>
+          <input type="text" id="form-task-name" placeholder="misal: Mapping SOP Klaim Client" required
+                 class="w-full bg-[#0b0f19] border border-gray-700/80 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-[#00ffaa] transition-all">
+        </div>
+
+        <!-- Task Category Input -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-medium text-gray-300">Category</label>
+          <select id="form-task-category" 
+                  class="w-full bg-[#0b0f19] border border-gray-700/80 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-[#00ffaa] transition-all">
+            <option value="Process Mapping">Process Mapping</option>
+            <option value="Client Review">Client Review</option>
+            <option value="System Audit">System Audit</option>
+            <option value="Internal BPM">Internal BPM</option>
+          </select>
+        </div>
+
+        <!-- Task Description Input -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-medium text-gray-300">Description</label>
+          <textarea id="form-task-description" rows="3" placeholder="Rincian proses, klausul, atau catatan penting..."
+                    class="w-full bg-[#0b0f19] border border-gray-700/80 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-[#00ffaa] transition-all resize-none"></textarea>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custom Confirmation Modal for Delete -->
+  <div id="delete-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass-card w-full max-w-xs rounded-2xl p-5 text-center flex flex-col gap-3">
+      <div class="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center mx-auto">
+        <i class="fa-solid fa-trash-can text-lg"></i>
+      </div>
+      <h3 class="text-sm font-bold text-white">Hapus Tugas Ini?</h3>
+      <p class="text-xs text-gray-400" id="delete-task-name-preview">Tugas yang telah dihapus tidak dapat dikembalikan.</p>
+      <div class="flex gap-2 mt-2">
+        <button onclick="closeDeleteModal()" class="w-1/2 py-2 rounded-xl border border-gray-700 text-xs text-gray-300 hover:bg-gray-800">Batal</button>
+        <button id="confirm-delete-btn" onclick="confirmDeleteTask()" class="w-1/2 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-xs transition-all">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl glass-card border border-[#00ffaa]/40 text-xs font-medium text-white shadow-xl flex items-center gap-2 transform translate-y-12 opacity-0 transition-all duration-300 pointer-events-none">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-[#00ffaa]"></i>
+    <span id="toast-message">Notifikasi</span>
+  </div>
+
+  <script>
+    // State Aplikasi Frontend
+    var appState = {
+      tasks: [],
+      statusFilter: 'All',
+      categoryFilter: 'All',
+      searchKeyword: '',
+      pendingDeleteId: null,
+      draggedItemIndex: null
+    };
+
+    // Safe Canvas Preview Dummy Fallback
+    var isCanvasMode = typeof google === 'undefined' || !google.script || !google.script.run;
+
+    var mockTasks = [
+      { id: 'BPM-0001', name: 'Mapping SOP Customer Onboarding', description: 'Membuat alur proses dari registrasi hingga aktivasi akun client', category: 'Process Mapping', status: 'Active', orderIndex: 1, createdAt: '03/10/2026 09:00:00' },
+      { id: 'BPM-0002', name: 'Audit Sistem Core Banking v2', description: 'Menganalisis bottleneck transaksi pada jam sibuk', category: 'System Audit', status: 'Active', orderIndex: 2, createdAt: '03/10/2026 09:15:00' },
+      { id: 'BPM-0003', name: 'Review SLA Client Enterprise X', description: 'Verifikasi kesesuaian response time dengan kontrak layanan', category: 'Client Review', status: 'Completed', orderIndex: 3, createdAt: '03/10/2026 09:30:00' }
+    ];
+
+    window.addEventListener('DOMContentLoaded', function() {
+      startLiveClock();
+      fetchWeatherWidget();
+      loadTasksData();
+    });
+
+    /**
+     * Widget Jam Real-Time
+     */
+    function startLiveClock() {
+      setInterval(function() {
+        var now = new Date();
+        var hours = ('0' + now.getHours()).slice(-2);
+        var minutes = ('0' + now.getMinutes()).slice(-2);
+        var seconds = ('0' + now.getSeconds()).slice(-2);
+        var clockEl = document.getElementById('live-clock');
+        if (clockEl) {
+          clockEl.innerText = hours + ':' + minutes + ':' + seconds + ' WIB';
+        }
+      }, 1000);
+    }
+
+    /**
+     * Fetch REST API Cuaca (Open-Meteo)
+     */
+    function fetchWeatherWidget() {
+      var weatherEl = document.getElementById('weather-widget');
+      var lat = -6.2088; // Jakarta
+      var lon = 106.8456;
+      var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true';
+
+      fetch(url)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data && data.current_weather) {
+            var temp = Math.round(data.current_weather.temperature);
+            var code = data.current_weather.weathercode;
+            var weatherText = temp + '°C Jakarta';
+            weatherEl.innerHTML = '<i class="fa-solid fa-cloud-sun text-[#00ffaa]"></i> <span>' + weatherText + '</span>';
+          } else {
+            weatherEl.innerHTML = '<i class="fa-solid fa-cloud text-[#00ffaa]"></i> <span>28°C Jakarta</span>';
+          }
+        })
+        .catch(function() {
+          weatherEl.innerHTML = '<i class="fa-solid fa-cloud-sun text-[#00ffaa]"></i> <span>28°C BPM Desk</span>';
+        });
+    }
+
+    /**
+     * Memuat Data dari Backend
+     */
+    function loadTasksData() {
+      showLoading(true);
+
+      var params = {
+        status: appState.statusFilter,
+        category: appState.categoryFilter,
+        search: appState.searchKeyword,
+        page: 1,
+        limit: 100
+      };
+
+      if (!isCanvasMode) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            showLoading(false);
+            if (response && response.success) {
+              appState.tasks = response.tasks || [];
+              renderTasksList();
+            } else {
+              showToast(response.error || 'Gagal memuat data', 'error');
+            }
+          })
+          .withFailureHandler(function(err) {
+            showLoading(false);
+            showToast('Error koneksi backend', 'error');
+          })
+          .getTasksBackend(params);
+      } else {
+        // Safe Preview Mode untuk Canvas
+        setTimeout(function() {
+          showLoading(false);
+          appState.tasks = mockTasks.filter(function(t) {
+            if (appState.statusFilter !== 'All' && t.status !== appState.statusFilter) return false;
+            if (appState.categoryFilter !== 'All' && t.category !== appState.categoryFilter) return false;
+            if (appState.searchKeyword && t.name.toLowerCase().indexOf(appState.searchKeyword.toLowerCase()) === -1) return false;
+            return true;
+          });
+          renderTasksList();
+        }, 400);
+      }
+    }
+
+    /**
+     * Render Daftar Tugas ke DOM
+     */
+    function renderTasksList() {
+      var container = document.getElementById('task-list-container');
+      var emptyState = document.getElementById('empty-state');
+      
+      container.innerHTML = '';
+
+      if (appState.tasks.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      } else {
+        emptyState.classList.add('hidden');
+      }
+
+      for (var i = 0; i < appState.tasks.length; i++) {
+        var task = appState.tasks[i];
+        var isCompleted = task.status === 'Completed';
+
+        var card = document.createElement('div');
+        card.className = 'task-item glass-card rounded-2xl p-3.5 flex items-start justify-between gap-3 border transition-all cursor-grab active:cursor-grabbing';
+        card.setAttribute('draggable', 'true');
+        card.setAttribute('data-id', task.id);
+        card.setAttribute('data-index', i);
+
+        // Styling Kategori Badge
+        var categoryBadgeClass = 'bg-[#00ffaa]/10 text-[#00ffaa] border-[#00ffaa]/30';
+        if (task.category === 'System Audit') {
+          categoryBadgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+        } else if (task.category === 'Client Review') {
+          categoryBadgeClass = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+        } else if (task.category === 'Internal BPM') {
+          categoryBadgeClass = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+        }
+
+        // Safe DOM string concatenation (NO nested backticks)
+        var htmlContent = '';
+        htmlContent += '<div class="flex items-start gap-3 flex-1 min-w-0">';
+        
+        // Custom Checkbox Button
+        var checkBg = isCompleted ? 'bg-[#00ffaa] border-[#00ffaa] text-[#0b0f19]' : 'border-gray-600 hover:border-[#00ffaa]';
+        var checkIcon = isCompleted ? '<i class="fa-solid fa-check text-xs"></i>' : '';
+        htmlContent += '<button onclick="toggleTaskStatus(\'' + task.id + '\')" class="mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 ' + checkBg + '">';
+        htmlContent += checkIcon;
+        htmlContent += '</button>';
+
+        // Task Body
+        htmlContent += '<div class="flex flex-col min-w-0 flex-1">';
+        var titleClass = isCompleted ? 'completed-task text-gray-400' : 'text-white font-medium';
+        htmlContent += '<span class="text-sm font-semibold leading-snug break-words ' + titleClass + '">' + escapeHtml(task.name) + '</span>';
+        
+        if (task.description) {
+          var descClass = isCompleted ? 'line-through text-gray-600' : 'text-gray-400';
+          htmlContent += '<p class="text-xs mt-1 leading-normal break-words ' + descClass + '">' + escapeHtml(task.description) + '</p>';
+        }
+
+        htmlContent += '<div class="flex items-center gap-2 mt-2 flex-wrap">';
+        htmlContent += '<span class="text-[10px] px-2 py-0.5 rounded-md border font-medium ' + categoryBadgeClass + '">' + escapeHtml(task.category || 'General') + '</span>';
+        htmlContent += '<span class="text-[10px] text-gray-500 font-mono">' + escapeHtml(task.id) + '</span>';
+        htmlContent += '</div>';
+
+        htmlContent += '</div>';
+        htmlContent += '</div>';
+
+        // Action Buttons (Edit & Delete)
+        htmlContent += '<div class="flex items-center gap-1.5 flex-shrink-0 text-gray-400">';
+        htmlContent += '<button onclick="openModal(\'edit\', \'' + task.id + '\')" class="w-7 h-7 rounded-lg hover:bg-gray-800 hover:text-white flex items-center justify-center transition-all" title="Edit">';
+        htmlContent += '<i class="fa-solid fa-pen text-xs"></i>';
+        htmlContent += '</button>';
+        htmlContent += '<button onclick="openDeleteModal(\'' + task.id + '\', \'' + escapeJsString(task.name) + '\')" class="w-7 h-7 rounded-lg hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center transition-all" title="Hapus">';
+        htmlContent += '<i class="fa-solid fa-trash-can text-xs"></i>';
+        htmlContent += '</button>';
+        htmlContent += '</div>';
+
+        card.innerHTML = htmlContent;
+
+        // Attach Drag and Drop Events
+        attachDragEvents(card);
+
+        container.appendChild(card);
+      }
+    }
+
+    /**
+     * Event Drag & Drop
+     */
+    function attachDragEvents(card) {
+      card.addEventListener('dragstart', function(e) {
+        appState.draggedItemIndex = parseInt(this.getAttribute('data-index'), 10);
+        this.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      card.addEventListener('dragend', function() {
+        this.classList.remove('dragging');
+        appState.draggedItemIndex = null;
+      });
+
+      card.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      });
+
+      card.addEventListener('drop', function(e) {
+        e.preventDefault();
+        var targetIndex = parseInt(this.getAttribute('data-index'), 10);
+        var sourceIndex = appState.draggedItemIndex;
+
+        if (sourceIndex !== null && sourceIndex !== targetIndex) {
+          // Optimistic UI Reorder
+          var movedItem = appState.tasks.splice(sourceIndex, 1)[0];
+          appState.tasks.splice(targetIndex, 0, movedItem);
+
+          // Reassign local order index
+          var orderedIds = [];
+          for (var k = 0; k < appState.tasks.length; k++) {
+            appState.tasks[k].orderIndex = k + 1;
+            orderedIds.push(appState.tasks[k].id);
+          }
+
+          renderTasksList();
+          showToast('Urutan tugas diperbarui', 'info');
+
+          // Sync Backend
+          if (!isCanvasMode) {
+            google.script.run.reorderTasksBackend(orderedIds);
+          }
+        }
+      });
+    }
+
+    /**
+     * Optimistic UI: Toggle Task Status
+     */
+    function toggleTaskStatus(taskId) {
+      for (var i = 0; i < appState.tasks.length; i++) {
+        if (appState.tasks[i].id === taskId) {
+          var currentStatus = appState.tasks[i].status;
+          var newStatus = currentStatus === 'Active' ? 'Completed' : 'Active';
+          
+          // Instantly update DOM
+          appState.tasks[i].status = newStatus;
+          renderTasksList();
+          
+          var msg = newStatus === 'Completed' ? 'Tugas ditandai selesai' : 'Tugas diaktifkan kembali';
+          showToast(msg, 'success');
+
+          // Backend sync
+          if (!isCanvasMode) {
+            google.script.run.toggleTaskStatusBackend(taskId, newStatus);
+          }
+          break;
+        }
+      }
+    }
+
+    /**
+     * Modal Operations
+     */
+    function openModal(mode, taskId) {
+      var modal = document.getElementById('task-modal');
+      var modalBox = document.getElementById('modal-box');
+      var modalTitle = document.getElementById('modal-title');
+
+      document.getElementById('task-form').reset();
+      document.getElementById('form-task-id').value = '';
+
+      if (mode === 'edit' && taskId) {
+        modalTitle.innerText = 'Edit Task';
+        var task = appState.tasks.find(function(t) { return t.id === taskId; });
+        if (task) {
+          document.getElementById('form-task-id').value = task.id;
+          document.getElementById('form-task-name').value = task.name;
+          document.getElementById('form-task-category').value = task.category || 'Process Mapping';
+          document.getElementById('form-task-description').value = task.description || '';
+        }
+      } else {
+        modalTitle.innerText = 'Add New';
+      }
+
+      modal.classList.remove('hidden');
+      setTimeout(function() {
+        modal.classList.remove('opacity-0');
+        modalBox.classList.remove('scale-95');
+      }, 10);
+    }
+
+    function closeModal() {
+      var modal = document.getElementById('task-modal');
+      var modalBox = document.getElementById('modal-box');
+
+      modal.classList.add('opacity-0');
+      modalBox.classList.add('scale-95');
+      setTimeout(function() {
+        modal.classList.add('hidden');
+      }, 200);
+    }
+
+    /**
+     * Simpan Tugas dari Modal (Add / Edit)
+     */
+    function saveTaskFromModal() {
+      var taskId = document.getElementById('form-task-id').value;
+      var name = document.getElementById('form-task-name').value.trim();
+      var category = document.getElementById('form-task-category').value;
+      var description = document.getElementById('form-task-description').value.trim();
+
+      if (!name) {
+        showToast('Nama tugas wajib diisi!', 'error');
+        return;
+      }
+
+      closeModal();
+
+      var taskPayload = {
+        id: taskId,
+        name: name,
+        category: category,
+        description: description
+      };
+
+      if (taskId) {
+        // Edit Task - Optimistic UI
+        for (var i = 0; i < appState.tasks.length; i++) {
+          if (appState.tasks[i].id === taskId) {
+            appState.tasks[i].name = name;
+            appState.tasks[i].category = category;
+            appState.tasks[i].description = description;
+            break;
+          }
+        }
+        renderTasksList();
+        showToast('Tugas berhasil diperbarui', 'success');
+
+        if (!isCanvasMode) {
+          google.script.run.updateTaskBackend(taskPayload);
+        }
+      } else {
+        // Add Task - Optimistic UI
+        var tempId = 'BPM-TEMP-' + Date.now();
+        var tempTask = {
+          id: tempId,
+          name: name,
+          category: category,
+          description: description,
+          status: 'Active',
+          orderIndex: appState.tasks.length + 1,
+          createdAt: 'Baru saja'
+        };
+
+        appState.tasks.unshift(tempTask);
+        renderTasksList();
+        showToast('Tugas baru ditambahkan', 'success');
+
+        if (!isCanvasMode) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              if (res && res.success) {
+                // Replace temp ID with real ID from backend
+                for (var j = 0; j < appState.tasks.length; j++) {
+                  if (appState.tasks[j].id === tempId) {
+                    appState.tasks[j].id = res.task.id;
+                    break;
+                  }
+                }
+                renderTasksList();
+              }
+            })
+            .addTaskBackend(taskPayload);
+        }
+      }
+    }
+
+    function openDeleteModal(taskId, taskName) {
+      appState.pendingDeleteId = taskId;
+      document.getElementById('delete-task-name-preview').innerText = '"' + taskName + '" akan dihapus secara permanen.';
+      document.getElementById('delete-modal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+      appState.pendingDeleteId = null;
+      document.getElementById('delete-modal').classList.add('hidden');
+    }
+
+    function confirmDeleteTask() {
+      var taskId = appState.pendingDeleteId;
+      if (!taskId) return;
+
+      closeDeleteModal();
+
+      // Optimistic UI Delete
+      appState.tasks = appState.tasks.filter(function(t) { return t.id !== taskId; });
+      renderTasksList();
+      showToast('Tugas telah dihapus', 'info');
+
+      if (!isCanvasMode) {
+        google.script.run.deleteTaskBackend(taskId);
+      }
+    }
+
+    function setStatusFilter(status) {
+      appState.statusFilter = status;
+      var tabs = ['all', 'active', 'completed'];
+      for (var i = 0; i < tabs.length; i++) {
+        var el = document.getElementById('tab-' + tabs[i]);
+        if (tabs[i] === status.toLowerCase()) {
+          el.className = 'px-3 py-1.5 rounded-lg font-medium transition-all text-[#00ffaa] bg-[#151b26]';
+        } else {
+          el.className = 'px-3 py-1.5 rounded-lg font-medium transition-all text-gray-400 hover:text-white';
+        }
+      }
+      loadTasksData();
+    }
+
+    function handleCategoryFilterChange() {
+      appState.categoryFilter = document.getElementById('category-filter').value;
+      loadTasksData();
+    }
+
+    function handleSearchInput() {
+      var input = document.getElementById('search-input');
+      var clearBtn = document.getElementById('clear-search-btn');
+      appState.searchKeyword = input.value;
+
+      if (input.value) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+
+      loadTasksData();
+    }
+
+    function clearSearch() {
+      var input = document.getElementById('search-input');
+      input.value = '';
+      appState.searchKeyword = '';
+      document.getElementById('clear-search-btn').classList.add('hidden');
+      loadTasksData();
+    }
+
+    function showLoading(show) {
+      var loader = document.getElementById('loading-state');
+      if (loader) {
+        if (show) loader.classList.remove('hidden');
+        else loader.classList.add('hidden');
+      }
+    }
+
+    /**
+     * Custom Toast Alert
+     */
+    function showToast(message, type) {
+      var toast = document.getElementById('toast');
+      var toastMessage = document.getElementById('toast-message');
+      var toastIcon = document.getElementById('toast-icon');
+
+      toastMessage.innerText = message;
+
+      if (type === 'error') {
+        toastIcon.className = 'fa-solid fa-circle-xmark text-red-400';
+      } else if (type === 'info') {
+        toastIcon.className = 'fa-solid fa-circle-info text-blue-400';
+      } else {
+        toastIcon.className = 'fa-solid fa-circle-check text-[#00ffaa]';
+      }
+
+      toast.classList.remove('translate-y-12', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(function() {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-12', 'opacity-0');
+      }, 2800);
+    }
+
+    // Helper Escape HTML
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeJsString(str) {
+      if (!str) return '';
+      return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+  </script>
+</body>
+</html>
